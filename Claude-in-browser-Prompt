@@ -1,0 +1,31 @@
+Navigate to the Claude Code settings page and systematically revoke all active authorization token sessions. Use the following approach which was proven to work correctly:
+
+1. Start at https://claude.ai/settings/claude-code and wait for the page to fully load
+2. Identify all "Revoke access" buttons (aria-label="Revoke access") in the Authorization tokens section
+3. For each session, execute these steps in sequence:
+   a. Get the first revoke button (btn[0]) and find its parent TR row element
+   b. Call the button's React onClick handler directly via: Object.keys(btn).find(k => k.startsWith('__reactProps'))[btn]['onClick']({ preventDefault: () => {}, stopPropagation: () => {}, target: btn, currentTarget: btn })
+   c. Wait for the confirmation dialog to appear (check every 80ms for up to 2.5 seconds)
+   d. Find the "Revoke Access" confirm button in the dialog
+   e. Call its React onClick handler the same way as step b
+   f. Wait 150ms for the click to register
+   g. IMMEDIATELY remove the parent TR row from DOM using row.remove() - this is critical to avoid re-targeting the same revoked session
+   h. Wait for the dialog to close (check every 60ms for up to 2 seconds)
+   i. Wait 50ms before proceeding to the next session
+4. Repeat until no more revoke buttons remain in the DOM
+5. Track progress with a live overlay showing: revoked count, remaining count (decreasing), rate/min, and error count (should stay at 0)
+6. Each revoked row must be visually removed from the page to prevent clicking it twice
+
+CRITICAL LESSONS from testing:
+- Do NOT use .click() on buttons positioned at x=1656 (off-screen from virtual scrolling) - use React's onClick directly
+- Do NOT skip the DOM removal step - the website doesn't update its UI after revoke, so you MUST manually remove rows to move to the next session
+- Do NOT assume btn[0] is a different session after revoke - it will be the SAME session unless you remove its row from DOM
+- Always call the confirm button via React onClick as well, not just the revoke button
+- The virtual scroll may render 628 buttons visible but only ~500-600 are actual remaining sessions due to virtual scroll overscan
+
+Expected behavior:
+- Rate should be 100-120 sessions per minute
+- Errors should remain at 0 throughout
+- Remaining count should steadily decrease (628 → 545 → 474 → etc.)
+- Duration for ~600 sessions should be approximately 5-6 minutes < edit the sessions based on the amount you see in the page> this was just an estimate. 
+- Progress indicator shows "#N revoked & removed" for each session
